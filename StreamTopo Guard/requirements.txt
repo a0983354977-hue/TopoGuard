@@ -1,0 +1,9 @@
+numpy>=1.24.0
+gudhi>=3.8.0
+matplotlib>=3.7.0
+scipy>=1.10.0
+pandas>=2.0.0
+psutil>=5.9.0
+scikit-learn>=1.3.0
+z3-solver>=4.12.0
+# torch>=2.0.0  # Optional: only for Module D (AI Loss Landscape Guard)
