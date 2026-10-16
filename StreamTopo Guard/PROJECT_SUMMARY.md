@@ -51,7 +51,7 @@ TDA-Guard is a commercial-grade Topological Data Analysis (TDA) tool for detecti
    - Test: ✅ Traffic standardization, turbulence detection
 
 4. **Module D: AI Loss Landscape Guard** (<ref_file file="C:\Users\Wei\Desktop\新增資料夾\adapters\module_d_ai_landscape.py" />)
-   - Technology: PyTorch + NumPy fallback
+   - Technology: PyTorch model-weight extraction (PyTorch required for this adapter)
    - Purpose: Detect model collapse and hallucination
    - Test: ✅ Weight extraction (780, 16 manifold), fracture detection
 
@@ -69,8 +69,8 @@ TDA-Guard is a commercial-grade Topological Data Analysis (TDA) tool for detecti
 1. **Defense 1: Hard Cap Guard (Memory Protection)**
    - Prevents memory exhaustion from massive data bursts
    - Smart downsampling with hard thresholds (MAX_POINTS=1000)
-   - Automatic validation and fallback
-   - Test: ✅ Small data passes, large data capped, empty data fallback
+   - Numeric validation and bounded downsampling; invalid or empty data is rejected
+   - Test: ✅ Small data passes, large data capped, empty data rejected
 
 2. **Defense 2: Adaptive Baseline (False Positive Prevention)**
    - Eliminates false positive storms from normal fluctuations
@@ -79,10 +79,9 @@ TDA-Guard is a commercial-grade Topological Data Analysis (TDA) tool for detecti
    - Test: ✅ Warm-up no alerts, normal scores no alerts, high scores alert
 
 3. **Defense 3: Bulletproof Error Handling (Graceful Degradation)**
-   - Prevents daemon crashes from malformed input
-   - Try-except wrappers with null-space fallbacks
-   - Error counting with degradation warnings
-   - Test: ✅ Successful parsing, failed parsing fallback, error counting
+   - Explicitly reports malformed input to the caller
+   - Error counting with degradation warnings; no synthetic fallback data
+   - Test: ✅ Successful parsing, failed parsing propagated, error counting
 
 4. **Defense 4: Vectorization Utilities (GIL Bypass)**
    - Maximizes multi-core performance on enterprise servers
@@ -91,7 +90,7 @@ TDA-Guard is a commercial-grade Topological Data Analysis (TDA) tool for detecti
    - Test: ✅ Normalization (mean≈0, std≈1), distance, rolling ops
 
 **Unified Wrapper**: DefensiveWrapper integrating all four defenses
-- Test: ✅ Safe execution, oversized data cap, failed parse fallback, baseline evaluation
+- Test: ✅ Safe execution, oversized data cap, failed parse propagation, baseline evaluation
 
 **Integration**:
 - DataAdapter: Hard Cap + Vectorization
@@ -115,9 +114,7 @@ tda-guard/
 ├── tda_engine.py                     # Core TDA engine
 ├── tda_guard_gui.py                  # GUI application
 ├── defensive.py                      # Four defensive mechanisms
-├── test_tda_guard.py                 # Core tests
-├── test_adapters.py                  # Adapter tests
-├── test_defensive.py                 # Defensive engineering tests
+└── tests/                            # Categorized test suites
 ├── requirements.txt                  # Dependencies
 ├── README.md                         # Main documentation
 ├── ADAPTERS_SUMMARY.md               # Adapter implementation summary
@@ -166,14 +163,14 @@ GUI Thread (3D visualization + persistence diagram)
 
 ### Test Suites
 
-1. **Core Tests** (<ref_file file="C:\Users\Wei\Desktop\新增資料夾\test_tda_guard.py" />)
+1. **Core Tests** ([tests/unit/core/test_tda_guard.py](tests/unit/core/test_tda_guard.py))
    - Data loading and normalization
    - Downsampling and sliding window
    - TDA engine computation
    - Statistics extraction
    - Result: ✅ All passing
 
-2. **Adapter Tests** (<ref_file file="C:\Users\Wei\Desktop\新增資料夾\test_adapters.py" />)
+2. **Adapter Tests** ([tests/unit/adapters/test_adapters.py](tests/unit/adapters/test_adapters.py))
    - Module A: System Resource Monitor
    - Module B: Web Traffic Guard
    - Module C: IoT Stream Guard
@@ -182,7 +179,7 @@ GUI Thread (3D visualization + persistence diagram)
    - TDA-Guard core integration
    - Result: ✅ All passing
 
-3. **Defensive Tests** (<ref_file file="C:\Users\Wei\Desktop\新增資料夾\test_defensive.py" />)
+3. **Defensive Tests** ([tests/unit/defensive/test_defensive.py](tests/unit/defensive/test_defensive.py))
    - Hard Cap Guard (5 tests)
    - Adaptive Baseline (5 tests)
    - Bulletproof Error Handling (5 tests)
@@ -194,13 +191,13 @@ GUI Thread (3D visualization + persistence diagram)
 ### Running Tests
 ```bash
 # Core tests
-python test_tda_guard.py
+python -m tests.unit.core.test_tda_guard
 
 # Adapter tests
-python test_adapters.py
+python -m tests.unit.adapters.test_adapters
 
 # Defensive tests
-python test_defensive.py
+python -m tests.unit.defensive.test_defensive
 ```
 
 ## Usage Examples
@@ -309,3 +306,6 @@ The system successfully balances:
 - **Operational reliability** (bulletproof error handling, adaptive baseline)
 
 This represents a complete engineering lifecycle from concept to production-grade implementation.
+> Historical implementation summary: fallback behavior described below has
+> been removed. Current runtime rejects invalid input instead of synthesizing
+> telemetry; see [README.md](README.md) for supported production behavior.

@@ -22,7 +22,8 @@ class WebTrafficGuard:
     def __init__(self):
         """Initialize web traffic guard."""
         self.common_log_pattern = re.compile(
-            r'(?P<ip>\d+\.\d+\.\d+\.\d+) - - \[(?P<time>.+?)\] "(?P<method>\w+) (?P<path>.+?) .*?" (?P<status>\d+) .*'
+            r'(?P<ip>\S+)\s+\S+\s+\S+\s+\[(?P<time>.+?)\] '
+            r'"(?P<method>\w+)\s+(?P<path>.+?)\s+HTTP/[\d.]+"\s+(?P<status>\d+)\s+.*'
         )
     
     def parse_access_log_to_manifold(self, log_file_path: str) -> np.ndarray:
@@ -35,10 +36,13 @@ class WebTrafficGuard:
         Returns:
             NumPy array of shape (N, D) containing numerical features
         """
-        # Read log file
         with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
-        
+
+        return self.parse_access_log_lines(lines)
+
+    def parse_access_log_lines(self, lines: List[str]) -> np.ndarray:
+        """Parse access log lines into numeric features."""
         # Parse lines into structured data
         records = []
         for line in lines:
@@ -168,51 +172,6 @@ class WebTrafficGuard:
         
         return anomalies
     
-    def generate_sample_log(self, n_entries: int = 1000, 
-                          include_attack: bool = False) -> str:
-        """
-        Generate sample access log for testing.
-        
-        Args:
-            n_entries: Number of log entries
-            include_attack: Whether to include attack patterns
-        
-        Returns:
-            Path to generated log file
-        """
-        import tempfile
-        import random
-        from datetime import datetime, timedelta
-        
-        ips = [f"192.168.1.{i}" for i in range(1, 20)]
-        methods = ['GET', 'POST', 'PUT', 'DELETE']
-        paths = ['/index.html', '/api/users', '/login', '/dashboard', '/admin']
-        statuses = [200, 200, 200, 200, 404, 500]
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.log', delete=False) as f:
-            base_time = datetime.now()
-            
-            for i in range(n_entries):
-                ip = random.choice(ips)
-                method = random.choice(methods)
-                
-                if include_attack and i > n_entries * 0.8:
-                    # Inject attack patterns
-                    path = f"/admin/../etc/passwd"
-                    status = 403
-                else:
-                    path = random.choice(paths)
-                    status = random.choice(statuses)
-                
-                timestamp = base_time + timedelta(seconds=i)
-                time_str = timestamp.strftime('%d/%b/%Y:%H:%M:%S +0000')
-                
-                log_line = f'{ip} - - [{time_str}] "{method} {path} HTTP/1.1" {status} 1234\n'
-                f.write(log_line)
-            
-            return f.name
-
-
 # Convenience function for quick integration
 def parse_access_log_to_manifold(log_file_path: str) -> np.ndarray:
     """

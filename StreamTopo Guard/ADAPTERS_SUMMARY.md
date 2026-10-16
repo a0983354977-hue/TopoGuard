@@ -1,5 +1,9 @@
 # TDA-Guard Industry Adapters - Implementation Summary
 
+> Historical adapter examples may use synthetic/sample generators that have
+> since been removed. Runtime adapters now require real source data; see
+> [README.md](README.md) for current usage.
+
 ## Overview
 
 Four modular industry application adapters have been successfully implemented, following the Adapter Pattern to seamlessly integrate with the TDA-Guard core engine. All adapters leverage industry-standard libraries for maximum reliability and minimal code complexity.
@@ -244,8 +248,7 @@ tda-guard/
 ├── data_adapter.py                # Core data adapter
 ├── tda_engine.py                  # Core TDA engine
 ├── tda_guard_gui.py               # GUI application
-├── test_tda_guard.py              # Core tests
-├── test_adapters.py               # Adapter tests
+└── tests/                         # Categorized tests (core, adapters, engines, integration, etc.)
 ├── requirements.txt               # Dependencies
 └── README.md                      # Documentation
 ```

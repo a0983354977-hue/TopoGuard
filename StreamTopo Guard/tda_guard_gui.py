@@ -61,44 +61,41 @@ class TDAGuardGUI:
         self.btn_load_json = ttk.Button(control_panel, text="Load JSON", command=self.load_json)
         self.btn_load_json.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=2)
         
-        self.btn_generate_sample = ttk.Button(control_panel, text="Generate Sample Data", command=self.generate_sample_data)
-        self.btn_generate_sample.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=2)
-        
-        ttk.Separator(control_panel, orient='horizontal').grid(row=4, column=0, sticky=(tk.W, tk.E), pady=10)
+        ttk.Separator(control_panel, orient='horizontal').grid(row=3, column=0, sticky=(tk.W, tk.E), pady=10)
         
         # Parameters section
-        ttk.Label(control_panel, text="Parameters:", font=('Arial', 10, 'bold')).grid(row=5, column=0, sticky=tk.W, pady=5)
+        ttk.Label(control_panel, text="Parameters:", font=('Arial', 10, 'bold')).grid(row=4, column=0, sticky=tk.W, pady=5)
         
-        ttk.Label(control_panel, text="Max Edge Length:").grid(row=6, column=0, sticky=tk.W)
+        ttk.Label(control_panel, text="Max Edge Length:").grid(row=5, column=0, sticky=tk.W)
         self.max_edge_var = tk.DoubleVar(value=1.5)
-        ttk.Entry(control_panel, textvariable=self.max_edge_var).grid(row=7, column=0, sticky=(tk.W, tk.E))
+        ttk.Entry(control_panel, textvariable=self.max_edge_var).grid(row=6, column=0, sticky=(tk.W, tk.E))
         
-        ttk.Label(control_panel, text="Downsample Size:").grid(row=8, column=0, sticky=tk.W)
+        ttk.Label(control_panel, text="Downsample Size:").grid(row=7, column=0, sticky=tk.W)
         self.downsample_var = tk.IntVar(value=500)
-        ttk.Entry(control_panel, textvariable=self.downsample_var).grid(row=9, column=0, sticky=(tk.W, tk.E))
+        ttk.Entry(control_panel, textvariable=self.downsample_var).grid(row=8, column=0, sticky=(tk.W, tk.E))
         
-        ttk.Separator(control_panel, orient='horizontal').grid(row=10, column=0, sticky=(tk.W, tk.E), pady=10)
+        ttk.Separator(control_panel, orient='horizontal').grid(row=9, column=0, sticky=(tk.W, tk.E), pady=10)
         
         # Computation section
-        ttk.Label(control_panel, text="Computation:", font=('Arial', 10, 'bold')).grid(row=11, column=0, sticky=tk.W, pady=5)
+        ttk.Label(control_panel, text="Computation:", font=('Arial', 10, 'bold')).grid(row=10, column=0, sticky=tk.W, pady=5)
         
         self.btn_compute = ttk.Button(control_panel, text="Compute Topology", command=self.start_computation)
-        self.btn_compute.grid(row=12, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.btn_compute.grid(row=11, column=0, sticky=(tk.W, tk.E), pady=5)
         
         # Progress bar
         self.progress = ttk.Progressbar(control_panel, mode='indeterminate')
-        self.progress.grid(row=13, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.progress.grid(row=12, column=0, sticky=(tk.W, tk.E), pady=5)
         
         self.status_label = ttk.Label(control_panel, text="Ready", foreground="blue")
-        self.status_label.grid(row=14, column=0, sticky=tk.W, pady=5)
+        self.status_label.grid(row=13, column=0, sticky=tk.W, pady=5)
         
-        ttk.Separator(control_panel, orient='horizontal').grid(row=15, column=0, sticky=(tk.W, tk.E), pady=10)
+        ttk.Separator(control_panel, orient='horizontal').grid(row=14, column=0, sticky=(tk.W, tk.E), pady=10)
         
         # Statistics section
-        ttk.Label(control_panel, text="Statistics:", font=('Arial', 10, 'bold')).grid(row=16, column=0, sticky=tk.W, pady=5)
+        ttk.Label(control_panel, text="Statistics:", font=('Arial', 10, 'bold')).grid(row=15, column=0, sticky=tk.W, pady=5)
         
         self.stats_text = tk.Text(control_panel, height=10, width=30, state='disabled')
-        self.stats_text.grid(row=17, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.stats_text.grid(row=16, column=0, sticky=(tk.W, tk.E), pady=5)
         
         # Visualization Panel (Right)
         viz_panel = ttk.Frame(main_frame)
@@ -142,33 +139,6 @@ class TDAGuardGUI:
                 self.status_label.config(text=f"Loaded JSON: {self.data_adapter.get_shape()}", foreground="green")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load JSON: {str(e)}")
-    
-    def generate_sample_data(self):
-        """Generate sample data for testing."""
-        try:
-            # Generate synthetic data with topological structure
-            n_samples = 500
-            np.random.seed(42)
-            
-            # Create a torus-like structure
-            theta = np.random.uniform(0, 2*np.pi, n_samples)
-            phi = np.random.uniform(0, 2*np.pi, n_samples)
-            
-            R = 3.0
-            r = 1.0
-            
-            x = (R + r * np.cos(phi)) * np.cos(theta)
-            y = (R + r * np.cos(phi)) * np.sin(theta)
-            z = r * np.sin(phi)
-            
-            # Add some noise
-            noise = np.random.normal(0, 0.1, (n_samples, 3))
-            data = np.column_stack([x, y, z]) + noise
-            
-            self.data_adapter.load_numpy(data)
-            self.status_label.config(text=f"Generated sample data: {self.data_adapter.get_shape()}", foreground="green")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate sample data: {str(e)}")
     
     def start_computation(self):
         """Start async computation in background thread."""

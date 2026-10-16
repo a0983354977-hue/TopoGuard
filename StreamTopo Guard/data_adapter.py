@@ -15,20 +15,22 @@ class DataAdapter:
         self.max_points = max_points
     
     def load_csv(self, filepath: str) -> np.ndarray:
-        try:
-            df = pd.read_csv(filepath)
-            numeric_df = df.select_dtypes(include=[np.number])
-            self.data = numeric_df.values.astype(np.float64)
-            self.data = self.hard_cap.validate_and_cap(self.data, max_points=self.max_points)
-            self.normalized_data = None
-            return self.data
-        except Exception as e:
-            import logging
-            logging.error(f"Failed to load CSV: {e}")
-            self.data = self.hard_cap.validate_and_cap(np.zeros((100, 3)))
-            return self.data
+        self.data = None
+        self.normalized_data = None
+        df = pd.read_csv(filepath)
+        numeric_df = df.select_dtypes(include=[np.number])
+        if numeric_df.empty or numeric_df.shape[1] == 0:
+            raise ValueError("CSV contains no numeric telemetry columns")
+        self.data = self.hard_cap.validate_and_cap(
+            numeric_df.values,
+            max_points=self.max_points,
+        )
+        self.normalized_data = None
+        return self.data
     
     def load_json(self, filepath: str) -> np.ndarray:
+        self.data = None
+        self.normalized_data = None
         with open(filepath, 'r') as f:
             data = json.load(f)
 
@@ -40,13 +42,22 @@ class DataAdapter:
             raise ValueError("Unsupported JSON structure")
 
         numeric_df = df.select_dtypes(include=[np.number])
-        self.data = numeric_df.values.astype(np.float64)
+        if numeric_df.empty or numeric_df.shape[1] == 0:
+            raise ValueError("JSON contains no numeric telemetry columns")
+        self.data = self.hard_cap.validate_and_cap(
+            numeric_df.values,
+            max_points=self.max_points,
+        )
         self.normalized_data = None
         return self.data
-    
+
     def load_numpy(self, data: np.ndarray) -> np.ndarray:
-        self.data = data.astype(np.float64)
+        self.data = None
         self.normalized_data = None
+        self.data = self.hard_cap.validate_and_cap(
+            data,
+            max_points=self.max_points,
+        )
         return self.data
     
     def normalize_zscore(self, data: np.ndarray = None) -> np.ndarray:

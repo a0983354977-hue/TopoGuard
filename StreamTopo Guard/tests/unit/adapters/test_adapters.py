@@ -11,15 +11,29 @@ Tests all four modules:
 import numpy as np
 import sys
 import os
+from pathlib import Path
+import tempfile
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the project root to the path when this test is run as a script.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from adapters.module_a_system_monitor import SystemResourceMonitor
 from adapters.module_b_web_traffic import WebTrafficGuard
 from adapters.module_c_iot_stream import IoTStreamGuard
-from adapters.module_d_ai_landscape import AILossLandscapeGuard, NumpyModelMock, extract_numpy_model_manifold
+from adapters.module_d_ai_landscape import AILossLandscapeGuard
 from adapters.unified_adapter import UnifiedAdapter, quick_analyze
+
+
+def packet_flow_fixture(n_samples=500):
+    index = np.arange(n_samples, dtype=float)
+    return np.column_stack([
+        400 + index % 100,
+        0.01 + (index % 17) * 0.0001,
+        2.5 + np.sin(index * 0.1),
+        3.0 + np.cos(index * 0.1),
+        index % 2,
+        5.0 + np.sin(index * 0.04),
+    ])
 
 
 def test_module_a_system_monitor():
@@ -56,13 +70,15 @@ def test_module_b_web_traffic():
     
     guard = WebTrafficGuard()
     
-    # Generate sample log
-    print("Generating sample access log...")
-    log_file = guard.generate_sample_log(n_entries=1000, include_attack=True)
-    print(f"Generated log file: {log_file}")
-    
-    # Parse log to manifold
-    print("Parsing access log...")
+    log_entries = [
+        '192.0.2.10 - - [10/Oct/2025:13:55:36 +0000] "GET /index.html HTTP/1.1" 200 1234\n',
+        '192.0.2.11 - - [10/Oct/2025:13:55:37 +0000] "POST /api/login HTTP/1.1" 401 245\n',
+        '192.0.2.12 - - [10/Oct/2025:13:55:38 +0000] "GET /admin/../etc/passwd HTTP/1.1" 403 87\n',
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as file:
+        file.writelines(log_entries)
+        log_file = file.name
+
     data = guard.parse_access_log_to_manifold(log_file)
     print(f"Parsed data shape: {data.shape}")
     
@@ -86,7 +102,7 @@ def test_module_c_iot_stream():
     
     # Generate normal traffic
     print("Generating normal IoT traffic...")
-    normal_traffic = guard.generate_sample_iot_traffic(n_samples=500, mode='normal')
+    normal_traffic = packet_flow_fixture()
     print(f"Normal traffic shape: {normal_traffic.shape}")
     
     # Standardize
@@ -95,9 +111,10 @@ def test_module_c_iot_stream():
     print(f"Mean: {np.mean(normal_standardized, axis=0)}")
     print(f"Std: {np.std(normal_standardized, axis=0)}")
     
-    # Generate botnet traffic
-    print("Generating botnet traffic...")
-    botnet_traffic = guard.generate_sample_iot_traffic(n_samples=500, mode='botnet')
+    # Use a distinct recorded-like feature batch to verify transform behavior.
+    botnet_traffic = normal_traffic.copy()
+    botnet_traffic[:, 0] *= 1.5
+    botnet_traffic[:, 1] *= 2
     botnet_standardized = guard.adapt_iot_traffic(botnet_traffic)
     
     # Detect flow regime
@@ -118,30 +135,20 @@ def test_module_d_ai_landscape():
     
     guard = AILossLandscapeGuard(tensor_dim=16)
     
-    # Test with NumPy mock (no PyTorch required)
-    print("Testing with NumPy mock model...")
-    model = NumpyModelMock(n_parameters=1000)
-    
-    # Extract manifold
-    manifold = extract_numpy_model_manifold(model, tensor_dim=16)
-    print(f"Extracted manifold shape: {manifold.shape}")
-    
-    # Simulate training
-    print("Simulating training steps...")
-    baseline_manifold = manifold.copy()
-    
-    for i in range(5):
-        model.update_weights(learning_rate=0.01)
-        current_manifold = extract_numpy_model_manifold(model, tensor_dim=16)
-        
-        # Detect fracture
-        fracture = guard.detect_landscape_fracture(current_manifold, baseline_manifold)
-        print(f"Step {i+1}: fracture_score={fracture['fracture_score']:.4f}")
+    baseline_manifold = np.zeros((4, 16))
+    current_manifold = np.repeat(
+        (np.arange(1, 5, dtype=float) * 0.25)[:, np.newaxis],
+        16,
+        axis=1,
+    )
+    fracture = guard.detect_landscape_fracture(current_manifold, baseline_manifold)
+    assert fracture["is_fractured"]
+    print(f"Measured fracture score: {fracture['fracture_score']:.4f}")
     
     # Test with PyTorch if available
     if guard.has_torch:
-        print("Testing with PyTorch model...")
-        pytorch_model = guard.generate_synthetic_model(n_layers=3, layer_size=64)
+        import torch.nn as nn
+        pytorch_model = nn.Linear(4, 4, bias=False)
         pytorch_manifold = guard.extract_model_weights_manifold(pytorch_model)
         print(f"PyTorch manifold shape: {pytorch_manifold.shape}")
     else:
@@ -160,20 +167,22 @@ def test_unified_adapter():
     print("Testing IoT Stream Guard via Unified Adapter...")
     adapter = UnifiedAdapter('iot_stream', window_size=500)
     
-    # Collect data first
-    data = adapter.collect_data(n_samples=500, mode='normal')
+    try:
+        adapter.collect_data()
+    except ValueError as exc:
+        assert "real packet_flows" in str(exc)
+    else:
+        raise AssertionError("IoT collection must require actual packet flows")
+
+    data = adapter.collect_data(packet_flows=packet_flow_fixture())
     result = adapter.analyze_topology(data=data)
     print(f"Analysis result keys: {result.keys()}")
     print(f"H0 features: {result['stats']['H0']['count']}")
     print(f"H1 features: {result['stats']['H1']['count']}")
     print(f"Anomaly score: {result['anomaly']['turbulence_score']:.4f}")
     
-    # Test quick_analyze
     print("\nTesting quick_analyze function...")
-    # For quick_analyze, pass parameters directly to collect_data
-    adapter2 = UnifiedAdapter('iot_stream')
-    data2 = adapter2.collect_data(n_samples=300, mode='botnet')
-    result2 = adapter2.analyze_topology(data=data2)
+    result2 = quick_analyze('iot_stream', data=packet_flow_fixture(300))
     print(f"Quick analyze H0: {result2['stats']['H0']['count']}")
     print(f"Quick analyze anomaly: {result2['anomaly']['turbulence_score']:.4f}")
     
@@ -191,7 +200,7 @@ def test_tda_integration():
     
     # Use Module C to generate data
     guard = IoTStreamGuard()
-    traffic = guard.generate_sample_iot_traffic(n_samples=500, mode='normal')
+    traffic = packet_flow_fixture()
     standardized = guard.adapt_iot_traffic(traffic)
     
     # Feed into TDA-Guard core

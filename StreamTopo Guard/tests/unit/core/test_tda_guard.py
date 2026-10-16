@@ -4,6 +4,9 @@ Tests the core functionality without GUI.
 """
 
 import numpy as np
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
 from data_adapter import DataAdapter
 from tda_engine import TDAEngine, compute_persistence_topology
 
@@ -36,6 +39,20 @@ def test_data_adapter():
     print(f"Downsampled from 2000 to {downsampled.shape[0]} points")
     
     print("DataAdapter tests passed!\n")
+
+
+def test_invalid_csv_is_not_replaced_with_generated_values():
+    with tempfile.TemporaryDirectory() as directory:
+        filepath = Path(directory) / "invalid.csv"
+        filepath.write_text("label\nalpha\nbeta\n", encoding="utf-8")
+        adapter = DataAdapter()
+        try:
+            adapter.load_csv(str(filepath))
+        except ValueError as exc:
+            assert "numeric telemetry columns" in str(exc)
+        else:
+            raise AssertionError("CSV without numeric telemetry must be rejected")
+        assert adapter.data is None
 
 
 def test_tda_engine():
@@ -101,6 +118,28 @@ def test_convenience_function():
     print("Convenience function test passed!\n")
 
 
+def test_tda_engine_caps_points_and_uses_configured_dimension():
+    simplex_tree = Mock()
+    simplex_tree.persistence.return_value = [(0, (0.0, 1.0))]
+    rips_complex = Mock()
+    rips_complex.create_simplex_tree.return_value = simplex_tree
+    engine = TDAEngine(max_dimension=1, max_points=300)
+    source = np.asfortranarray(np.arange(1200, dtype=np.float64).reshape(400, 3))
+
+    with patch("tda_engine.gudhi.RipsComplex", return_value=rips_complex) as create_rips:
+        sampled, _ = engine.compute_persistence_topology(source)
+
+    assert sampled.shape == (300, 3)
+    assert sampled.flags.c_contiguous
+    create_rips.assert_called_once()
+    assert rips_complex.create_simplex_tree.call_args.kwargs["max_dimension"] == 2
+
+    rips_complex.create_simplex_tree.reset_mock()
+    with patch("tda_engine.gudhi.RipsComplex", return_value=rips_complex):
+        TDAEngine(max_dimension=2).compute_persistence_topology(source[:4])
+    assert rips_complex.create_simplex_tree.call_args.kwargs["max_dimension"] == 3
+
+
 def test_sliding_window():
     """Test sliding window functionality."""
     print("=" * 60)
@@ -131,7 +170,9 @@ def test_sliding_window():
 if __name__ == "__main__":
     try:
         test_data_adapter()
+        test_invalid_csv_is_not_replaced_with_generated_values()
         test_tda_engine()
+        test_tda_engine_caps_points_and_uses_configured_dimension()
         test_convenience_function()
         test_sliding_window()
         

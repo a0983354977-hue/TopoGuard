@@ -131,60 +131,6 @@ class AILossLandscapeGuard:
         
         return fracture
     
-    def generate_synthetic_model(self, n_layers: int = 3, 
-                                layer_size: int = 64) -> object:
-        """
-        Generate synthetic PyTorch model for testing.
-        
-        Args:
-            n_layers: Number of layers
-            layer_size: Size of each layer
-        
-        Returns:
-            PyTorch model
-        """
-        if not self.has_torch:
-            raise ImportError("PyTorch is not installed")
-        
-        import torch
-        import torch.nn as nn
-        
-        layers = []
-        input_size = layer_size
-        
-        for i in range(n_layers):
-            layers.append(nn.Linear(input_size, layer_size))
-            layers.append(nn.ReLU())
-            input_size = layer_size
-        
-        model = nn.Sequential(*layers)
-        
-        # Initialize with random weights
-        for param in model.parameters():
-            nn.init.normal_(param, mean=0.0, std=0.1)
-        
-        return model
-    
-    def simulate_training_step(self, model, learning_rate: float = 0.01):
-        """
-        Simulate a training step by perturbing weights.
-        
-        Args:
-            model: PyTorch model
-            learning_rate: Learning rate for weight updates
-        """
-        if not self.has_torch:
-            raise ImportError("PyTorch is not installed")
-        
-        import torch
-        
-        with torch.no_grad():
-            for param in model.parameters():
-                # Simulate gradient descent with random gradients
-                gradient = torch.randn_like(param) * 0.1
-                param.data -= learning_rate * gradient
-
-
 # Convenience function for quick integration
 def extract_model_weights_manifold(model, tensor_dim: int = 16) -> np.ndarray:
     """
@@ -199,48 +145,3 @@ def extract_model_weights_manifold(model, tensor_dim: int = 16) -> np.ndarray:
     """
     guard = AILossLandscapeGuard(tensor_dim=tensor_dim)
     return guard.extract_model_weights_manifold(model)
-
-
-# Fallback: NumPy-only version for when PyTorch is not available
-class NumpyModelMock:
-    """
-    Mock model using NumPy for testing without PyTorch.
-    """
-    
-    def __init__(self, n_parameters: int = 1000):
-        """Initialize mock model with random weights."""
-        self.weights = np.random.randn(n_parameters)
-    
-    def get_weights(self) -> np.ndarray:
-        """Get weight vector."""
-        return self.weights
-    
-    def update_weights(self, learning_rate: float = 0.01):
-        """Simulate training step."""
-        gradient = np.random.randn(*self.weights.shape) * 0.1
-        self.weights -= learning_rate * gradient
-
-
-def extract_numpy_model_manifold(model: NumpyModelMock, 
-                                tensor_dim: int = 16) -> np.ndarray:
-    """
-    Extract weights from NumPy mock model.
-    
-    Args:
-        model: NumpyModelMock instance
-        tensor_dim: Dimension for reshaping
-    
-    Returns:
-        NumPy array ready for TDA-Guard
-    """
-    weights = model.get_weights()
-    n_elements = weights.shape[0]
-    n_points = n_elements // tensor_dim
-    
-    if n_points == 0:
-        raise ValueError(f"Model has too few parameters ({n_elements}) for tensor_dim={tensor_dim}")
-    
-    flat_weights = weights[:n_points * tensor_dim]
-    manifold = flat_weights.reshape(n_points, tensor_dim)
-    
-    return manifold

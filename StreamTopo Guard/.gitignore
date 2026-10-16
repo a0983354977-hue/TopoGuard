@@ -1,0 +1,13 @@
+/.venv-build/
+/build/
+/dist/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+/*.spec
+/downloads/Windows/TopoGuard.exe
+/downloads/Linux/TopoGuard
+/downloads/Linux/*.tar.gz
+/downloads/macOS/TopoGuard.app/
+/downloads/macOS/*.zip

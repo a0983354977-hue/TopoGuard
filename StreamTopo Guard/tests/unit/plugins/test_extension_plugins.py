@@ -1,5 +1,16 @@
 import numpy as np
+import z3
 from extension_plugins import Z3FormalVerificationPlugin, PhysicsPhaseTransitionPlugin
+
+
+def test_z3_solver_reuse_does_not_leak_constraints():
+    with Z3FormalVerificationPlugin._solver_context() as first_solver:
+        first_solver.add(z3.BoolVal(False))
+        assert first_solver.check() == z3.unsat
+
+    with Z3FormalVerificationPlugin._solver_context() as second_solver:
+        assert second_solver is first_solver
+        assert second_solver.check() == z3.sat
 
 
 def test_z3_formal_verification():
@@ -18,7 +29,9 @@ def test_z3_formal_verification():
     )
 
     print(f"[PASS] Test 1: H0={h0_count}, H1={h1_count}, Threshold={threshold_h1}")
-    print(f"  Result: {result}")
+    print(f"  Is Violated: {result['is_violated']}")
+    print(f"  Reason: {result['reason']}")
+    print(f"  Computation Time: {result['computation_time_ms']:.2f} ms")
 
     h1_count_high = 100
     result_high = Z3FormalVerificationPlugin.verify_topological_invariants(
@@ -28,7 +41,21 @@ def test_z3_formal_verification():
     )
 
     print(f"[PASS] Test 2: H0={h0_count}, H1={h1_count_high}, Threshold={threshold_h1}")
-    print(f"  Result: {result_high}")
+    print(f"  Is Violated: {result_high['is_violated']}")
+    print(f"  Reason: {result_high['reason']}")
+
+    # Test lazy evaluation
+    result_lazy = Z3FormalVerificationPlugin.verify_topological_invariants(
+        h0_count=h0_count,
+        h1_count=h1_count,
+        threshold_h1=threshold_h1,
+        enable_lazy=True,
+        tda_anomaly_score=0.3,
+        tda_threshold=0.5
+    )
+    print(f"[PASS] Test 3: Lazy evaluation (TDA score below threshold)")
+    print(f"  Is Violated: {result_lazy['is_violated']}")
+    print(f"  Reason: {result_lazy['reason']}")
 
     print("\n[PASS] Z3 Formal Verification Plugin tests completed\n")
 
@@ -115,7 +142,7 @@ def test_integration_with_tda_engine():
             h1_count=stats['H1']['count'],
             threshold_h1=50
         )
-        print(f"[PASS] Z3 Verification: {z3_result}")
+        print(f"[PASS] Z3 Verification: Is Violated={z3_result['is_violated']}, Reason={z3_result['reason']}")
 
         entropy = PhysicsPhaseTransitionPlugin.calculate_manifold_entropy(diag)
         print(f"[PASS] Manifold Entropy: {entropy:.4f} bits")
@@ -131,6 +158,8 @@ if __name__ == "__main__":
     print("TDA-Guard Extension Plugins Test Suite")
     print("=" * 60 + "\n")
 
+    test_z3_solver_reuse_does_not_leak_constraints()
+    print("[PASS] Z3 solver is reused without leaking scoped constraints")
     test_z3_formal_verification()
     test_physics_phase_transition()
     test_integration_with_tda_engine()

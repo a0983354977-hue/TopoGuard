@@ -68,7 +68,6 @@ class UnifiedAdapter:
         self.defensive = DefensiveWrapper(
             max_points=kwargs.get('max_points', 1000),
             baseline_window=kwargs.get('baseline_window', 50),
-            fallback_shape=kwargs.get('fallback_shape', (100, 3))
         )
         
         # Initialize adaptive baseline for anomaly scores
@@ -78,7 +77,7 @@ class UnifiedAdapter:
         """Create the appropriate adapter based on mode."""
         # Filter out defensive-only kwargs before passing to adapters
         adapter_kwargs = self.kwargs.copy()
-        defensive_keys = {'max_points', 'baseline_window', 'fallback_shape'}
+        defensive_keys = {'max_points', 'baseline_window'}
         for key in defensive_keys:
             adapter_kwargs.pop(key, None)
         
@@ -107,25 +106,19 @@ class UnifiedAdapter:
             return self.adapter.collect_continuous_stream(**collect_kwargs)
         elif self.mode == 'web_traffic':
             log_file = collect_kwargs.get('log_file')
-            if log_file:
-                return self.adapter.parse_access_log_to_manifold(log_file)
-            else:
-                # Generate sample log for testing
-                sample_log = self.adapter.generate_sample_log(**collect_kwargs)
-                return self.adapter.parse_access_log_to_manifold(sample_log)
+            if not log_file:
+                raise ValueError("web_traffic requires a real access log path")
+            return self.adapter.parse_access_log_to_manifold(log_file)
         elif self.mode == 'iot_stream':
-            n_samples = collect_kwargs.get('n_samples', 500)
-            mode = collect_kwargs.get('mode', 'normal')
-            traffic = self.adapter.generate_sample_iot_traffic(n_samples, mode)
+            traffic = collect_kwargs.get('packet_flows')
+            if traffic is None:
+                raise ValueError("iot_stream requires real packet_flows")
             return self.adapter.adapt_iot_traffic(traffic)
         elif self.mode == 'ai_landscape':
             model = collect_kwargs.get('model')
-            if model:
-                return self.adapter.extract_model_weights_manifold(model)
-            else:
-                # Generate synthetic model for testing
-                model = self.adapter.generate_synthetic_model(**collect_kwargs)
-                return self.adapter.extract_model_weights_manifold(model)
+            if model is None:
+                raise ValueError("ai_landscape requires a loaded model")
+            return self.adapter.extract_model_weights_manifold(model)
         else:
             raise ValueError(f"Data collection not implemented for mode: {self.mode}")
     
@@ -217,10 +210,9 @@ class UnifiedAdapter:
         elif self.mode == 'ai_landscape':
             # For AI landscape, need baseline
             baseline = self.kwargs.get('baseline_weights')
-            if baseline:
+            if baseline is not None:
                 return self.adapter.detect_landscape_fracture(data, baseline)
-            else:
-                return {'fracture_score': 0.0, 'is_fractured': False}
+            raise ValueError("ai_landscape requires baseline_weights for comparison")
         else:
             return {'score': 0.0}
     
@@ -252,16 +244,23 @@ class UnifiedAdapter:
         return results
 
 
-def quick_analyze(mode: str, **kwargs) -> Dict[str, Any]:
+def quick_analyze(mode: str, data: np.ndarray, **kwargs) -> Dict[str, Any]:
     """
     Convenience function for quick one-line analysis.
     
     Args:
         mode: Adapter mode
-        **kwargs: Arguments for data collection and analysis
+        data: Real, previously collected feature matrix
+        **kwargs: Adapter configuration and analysis options
     
     Returns:
         Analysis results dictionary
     """
+    analysis_keys = {"max_edge", "use_defensive"}
+    analysis_options = {
+        key: kwargs.pop(key)
+        for key in tuple(kwargs)
+        if key in analysis_keys
+    }
     adapter = UnifiedAdapter(mode, **kwargs)
-    return adapter.analyze_topology(**kwargs)
+    return adapter.analyze_topology(data=data, **analysis_options)

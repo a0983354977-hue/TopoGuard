@@ -10,10 +10,10 @@ Tests all four defensive mechanisms:
 
 import numpy as np
 import sys
-import os
+from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the project root to the path when this test is run as a script.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from defensive import (
     HardCapGuard,
@@ -45,16 +45,23 @@ def test_hard_cap_guard():
     assert result.shape[0] == 1000, "Large data should be downsampled to 1000"
     print(f"[PASS] Large data (5000 points) downsampled to: {result.shape}")
     
-    # Test 3: Empty data (should return fallback)
+    # Empty or missing data must fail rather than masquerade as telemetry.
     empty_data = np.array([])
-    result = guard.safe_downsample(empty_data, max_points=1000)
-    assert result.shape == HardCapGuard.FALLBACK_SHAPE, "Empty data should return fallback"
-    print(f"[PASS] Empty data returned fallback: {result.shape}")
-    
-    # Test 4: None data (should return fallback)
-    result = guard.safe_downsample(None, max_points=1000)
-    assert result.shape == HardCapGuard.FALLBACK_SHAPE, "None data should return fallback"
-    print(f"[PASS] None data returned fallback: {result.shape}")
+    for invalid_data in (empty_data, None):
+        try:
+            guard.safe_downsample(invalid_data, max_points=1000)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Empty or missing input must be rejected")
+    print("[PASS] Empty and missing data rejected")
+
+    try:
+        guard.validate_and_cap(None)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Missing data must not be converted into a fallback")
     
     # Test 5: validate_and_cap with dimension limit
     high_dim_data = np.random.randn(100, 200)
@@ -125,16 +132,20 @@ def test_bulletproof_error_handling():
     assert np.array_equal(result, np.array([2, 4, 6])), "Successful parse should work"
     print("[PASS] Successful parsing: result correct")
     
-    # Test 2: Failed parsing (should return fallback)
+    # Test 2: Failed parsing must be reported without inventing telemetry.
     def failing_parse(data):
         raise ValueError("Intentional error")
     
-    result = bulletproof_parse_adapter(failing_parse, [1, 2, 3])
-    assert result.shape == (100, 3), "Failed parse should return fallback shape"
-    print(f"[PASS] Failed parsing: returned fallback shape {result.shape}")
+    try:
+        bulletproof_parse_adapter(failing_parse, [1, 2, 3])
+    except ValueError as exc:
+        assert "Intentional error" in str(exc)
+    else:
+        raise AssertionError("Parser failures must propagate to the caller")
+    print("[PASS] Failed parsing propagated")
     
     # Test 3: BulletproofAdapter class
-    adapter = BulletproofAdapter(fallback_shape=(50, 2))
+    adapter = BulletproofAdapter()
 
     def good_func(x):
         return np.ones((10, 2))
@@ -149,8 +160,12 @@ def test_bulletproof_error_handling():
         raise RuntimeError("Test error")
 
     for _ in range(3):
-        result = adapter.execute(bad_func, "test_input")
-        assert result.shape == (50, 2), "Failed execution should return fallback"
+        try:
+            adapter.execute(bad_func, "test_input")
+        except RuntimeError as exc:
+            assert "Test error" in str(exc)
+        else:
+            raise AssertionError("Adapter failures must propagate")
     
     assert adapter.error_count == 3, f"Error count should be 3, got {adapter.error_count}"
     print(f"[PASS] BulletproofAdapter: error counting working ({adapter.error_count} errors)")
@@ -215,7 +230,7 @@ def test_defensive_wrapper():
     print("Testing Unified Defensive Wrapper")
     print("=" * 60)
     
-    wrapper = DefensiveWrapper(max_points=1000, baseline_window=10, fallback_shape=(50, 3))
+    wrapper = DefensiveWrapper(max_points=1000, baseline_window=10)
     
     # Test 1: Safe execution with good data
     def good_parse(data):
@@ -238,9 +253,14 @@ def test_defensive_wrapper():
     def failing_parse(data):
         raise ValueError("Test error")
     
-    result, is_anomaly = wrapper.safe_execute(failing_parse, "test_input", current_score=0.5)
-    assert result.shape == (50, 3), "Failed parse should return fallback"
-    print(f"[PASS] Failed parse fallback: result shape {result.shape}")
+    try:
+        wrapper.safe_execute(failing_parse, "test_input", current_score=0.5)
+    except ValueError as exc:
+        assert "Test error" in str(exc)
+    else:
+        raise AssertionError("Failed parsing must not return fabricated data")
+    assert wrapper.bulletproof.error_count == 1
+    print("[PASS] Failed parse propagated without fallback data")
     
     # Test 4: Baseline evaluation over multiple iterations
     print("Testing baseline evaluation over 15 iterations...")
@@ -278,7 +298,8 @@ def test_integration_with_adapters():
     adapter = UnifiedAdapter('iot_stream', max_points=1000, baseline_window=10)
     
     # Collect data
-    data = adapter.collect_data(n_samples=500, mode='normal')
+    packet_flows = np.arange(3000, dtype=float).reshape(500, 6)
+    data = adapter.collect_data(packet_flows=packet_flows)
     print(f"[PASS] Collected data: shape {data.shape}")
     
     # Analyze with defensive enabled

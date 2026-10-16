@@ -20,7 +20,7 @@ TDA-Guard incorporates four production-grade defensive mechanisms to ensure stab
 **Key Features**:
 - Default MAX_POINTS = 1000
 - Automatic validation of data shape and dimensions
-- Fallback to safe null-space data on critical errors
+- Invalid or empty data is rejected; no synthetic fallback values are created
 - Logging of downsampling operations
 
 **Usage**:
@@ -34,7 +34,7 @@ data = guard.validate_and_cap(large_data, max_points=1000, max_dims=100)
 **Test Results**:
 - ✅ Small data (100 points) passes through unchanged
 - ✅ Large data (5000 points) downsampled to 1000
-- ✅ Empty/None data returns safe fallback (100, 3)
+- ✅ Empty/None data is rejected with an explicit error
 - ✅ High-dimensional data (200 dims) truncated to 50
 
 ---
@@ -80,36 +80,35 @@ is_anomaly, threshold, z_score = baseline.evaluate(current_score)
 **Problem**: Enterprise log format mutations, missing fields, or corrupted data cause parser crashes, disconnecting background daemon processes.
 
 **Solution**:
-- Bulletproof try-except wrapper around all parsing operations
-- Fallback to null-space geometry on failure
-- Comprehensive logging of all errors
-- Error counting with degradation warnings
-- Daemon never crashes, always returns safe data
+- Log parser failures and propagate them to the caller
+- Never convert an error into fabricated telemetry or a successful result
+- Track consecutive failures and emit degradation warnings
 
 **Implementation**: <ref_file file="C:\Users\Wei\Desktop\新增資料夾\defensive.py" lines="146-211" />
 
 **Key Features**:
-- Function wrapper with automatic error catching
-- Configurable fallback shape (default: 100×3)
+- Function wrapper with error logging and propagation
 - Error counting with max error threshold
 - Automatic error reset on successful execution
-- Warning logs for all failures
+- Error logs for all failures
 
 **Usage**:
 ```python
 from defensive import bulletproof_parse_adapter, BulletproofAdapter
 
-# Functional wrapper
-result = bulletproof_parse_adapter(parse_func, raw_input, fallback_shape=(100, 3))
+try:
+    result = bulletproof_parse_adapter(parse_func, raw_input)
+except ValueError:
+    # Report or quarantine the invalid input at the source boundary.
+    raise
 
-# Class wrapper
-adapter = BulletproofAdapter(fallback_shape=(50, 2))
+adapter = BulletproofAdapter()
 result = adapter.execute(parse_func, raw_input)
 ```
 
 **Test Results**:
 - ✅ Successful parsing returns correct results
-- ✅ Failed parsing returns safe fallback shape
+- ✅ Failed parsing is logged and propagated
 - ✅ Error counting tracks consecutive failures
 - ✅ Error reset on successful execution
 - ✅ Warning logs generated for all failures
@@ -161,7 +160,7 @@ The `DefensiveWrapper` class integrates all four defenses into a single interfac
 ```python
 from defensive import DefensiveWrapper
 
-wrapper = DefensiveWrapper(max_points=1000, baseline_window=50, fallback_shape=(100, 3))
+wrapper = DefensiveWrapper(max_points=1000, baseline_window=50)
 result, is_anomaly = wrapper.safe_execute(parse_func, raw_input, current_score=0.5)
 ```
 
@@ -174,7 +173,7 @@ result, is_anomaly = wrapper.safe_execute(parse_func, raw_input, current_score=0
 **Test Results**:
 - ✅ Safe execution with good data: correct shape, no anomaly
 - ✅ Oversized data: automatically capped to max_points
-- ✅ Failed parse: returns fallback shape, daemon continues
+- ✅ Failed parse: propagates the error without fabricating data
 - ✅ Baseline evaluation: warm-up, threshold calculation, alert triggering
 
 ---
@@ -214,11 +213,11 @@ result = adapter.analyze_topology(data=data, use_defensive=True)
 
 ## Testing
 
-**Test Suite**: <ref_file file="C:\Users\Wei\Desktop\新增資料夾\test_defensive.py" />
+**Test Suite**: [`tests/unit/defensive/test_defensive.py`](tests/unit/defensive/test_defensive.py)
 
 Run defensive engineering tests:
 ```bash
-python test_defensive.py
+python -m tests.unit.defensive.test_defensive
 ```
 
 **Test Coverage**:
@@ -288,8 +287,8 @@ Defensive module logs to standard Python logging:
 **Issue**: Too many false positives
 - **Solution**: Increase std_multiplier or baseline_window
 
-**Issue**: Frequent fallback data returns
-- **Solution**: Check data source integrity, adjust parsing logic
+**Issue**: Frequent parser errors
+- **Solution**: Check data source integrity and fix the parser; invalid telemetry is rejected
 
 **Issue**: Slow computation
 - **Solution**: Verify vectorization is used, check GIL release

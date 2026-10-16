@@ -53,49 +53,6 @@ class IoTStreamGuard:
         
         return standardized
     
-    def generate_sample_iot_traffic(self, n_samples: int = 500, 
-                                   mode: str = 'normal') -> np.ndarray:
-        """
-        Generate synthetic IoT traffic for testing.
-        
-        Args:
-            n_samples: Number of samples to generate
-            mode: 'normal' (laminar flow) or 'botnet' (turbulent flow)
-        
-        Returns:
-            NumPy array of shape (n_samples, 6)
-        """
-        np.random.seed(42)
-        
-        if mode == 'normal':
-            # Laminar flow: stable, predictable patterns
-            packet_size = np.random.normal(500, 50, n_samples)
-            inter_arrival = np.random.normal(0.01, 0.001, n_samples)
-            src_entropy = np.random.normal(2.5, 0.2, n_samples)
-            dst_entropy = np.random.normal(3.0, 0.3, n_samples)
-            protocol_type = np.random.choice([0, 1], n_samples, p=[0.9, 0.1])
-            flow_duration = np.random.normal(5.0, 0.5, n_samples)
-        else:
-            # Turbulent flow (botnet): chaotic, high variance
-            packet_size = np.random.normal(1200, 300, n_samples)
-            inter_arrival = np.random.exponential(0.05, n_samples)
-            src_entropy = np.random.uniform(0.5, 4.0, n_samples)
-            dst_entropy = np.random.uniform(1.0, 4.5, n_samples)
-            protocol_type = np.random.choice([0, 1, 2], n_samples, p=[0.4, 0.4, 0.2])
-            flow_duration = np.random.exponential(2.0, n_samples)
-        
-        # Combine features
-        traffic = np.column_stack([
-            packet_size,
-            inter_arrival,
-            src_entropy,
-            dst_entropy,
-            protocol_type,
-            flow_duration
-        ])
-        
-        return traffic
-    
     def add_traffic_sample(self, sample: np.ndarray):
         """
         Add single traffic sample to history.

@@ -177,7 +177,7 @@ z3-solver>=4.12.0
 Run the extension plugin test suite:
 
 ```bash
-python test_extension_plugins.py
+python -m tests.unit.plugins.test_extension_plugins
 ```
 
 ### Test Coverage
